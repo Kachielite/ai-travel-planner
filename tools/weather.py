@@ -26,8 +26,13 @@ class WeatherTool:
                         "type": "string",
                         "description": "The city that the user wants to travel to",
                     },
+                    "trip_dates": {
+                        "type": "string",
+                        "description": "The date of the trip in 'YYYY-MM-DD' format",
+                        "example": "2023-10-01"
+                    }
                 },
-                "required": ["destination_city"],
+                "required": ["destination_city", "trip_dates"],
                 "additionalProperties": False
             }
         }

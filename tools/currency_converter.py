@@ -21,20 +21,27 @@ class CurrencyConverterTool:
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "from_currency": {
-                        "type": "string",
-                        "description": "The currency code to convert from (e.g., 'USD', 'EUR').",
-                    },
-                    "to_currency": {
-                        "type": "string",
-                        "description": "The currency code to convert to (e.g., 'USD', 'EUR').",
-                    },
-                    "amount": {
-                        "type": "number",
-                        "description": "The amount of money to convert.",
-                    },
+                    "data": {
+                        "type": "object",
+                        "properties": {
+                            "from_currency": {
+                                "type": "string",
+                                "description": "The currency code to convert from (e.g., 'USD', 'EUR')."
+                            },
+                            "to_currency": {
+                                "type": "string",
+                                "description": "The currency code to convert to (e.g., 'JPY', 'GBP')."
+                            },
+                            "amount": {
+                                "type": "number",
+                                "description": "The amount of money to convert."
+                            }
+                        },
+                        "required": ["from_currency", "to_currency", "amount"],
+                        "additionalProperties": False
+                    }
                 },
-                "required": ["from_currency", "to_currency", "amount"],
+                "required": ["data"],
                 "additionalProperties": False
             }
         }
