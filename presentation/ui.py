@@ -71,3 +71,67 @@ class UI:
             description="Plan your perfect trip with AI assistance. Please fill in all fields to get started."
         )
         return view.launch()
+
+
+# class TravelUI:
+#     def __init__(self, plan_trip_callback: Callable):
+#         self.plan_trip_callback = plan_trip_callback
+#         self.interface = self._create_interface()
+#
+#     def _create_interface(self):
+#         """Create the Gradio interface"""
+#         with gr.Blocks(title="AI Travel Planner", theme=gr.themes.Soft()) as interface:
+#             gr.Markdown("# 🌍 AI Travel Planner")
+#             gr.Markdown("Plan your perfect trip with AI assistance!")
+#
+#             with gr.Row():
+#                 with gr.Column():
+#                     destination = gr.Textbox(
+#                         label="Destination",
+#                         placeholder="e.g., Paris, France",
+#                         value=""
+#                     )
+#
+#                     with gr.Row():
+#                         travel_from = gr.Textbox(
+#                             label="Travel From (Date)",
+#                             placeholder="e.g., 2024-03-15",
+#                             value=""
+#                         )
+#                         travel_to = gr.Textbox(
+#                             label="Travel To (Date)",
+#                             placeholder="e.g., 2024-03-22",
+#                             value=""
+#                         )
+#
+#                     experience = gr.Dropdown(
+#                         choices=["Adventure", "Relaxation", "Cultural", "Business", "Family", "Romantic"],
+#                         label="Travel Experience",
+#                         value="Cultural"
+#                     )
+#
+#                     spend_level = gr.Dropdown(
+#                         choices=["Budget", "Mid-range", "Luxury"],
+#                         label="Spending Level",
+#                         value="Mid-range"
+#                     )
+#
+#                     plan_button = gr.Button("🗺️ Plan My Trip", variant="primary")
+#
+#                 with gr.Column():
+#                     output = gr.Markdown(
+#                         label="Your Travel Plan",
+#                         value="Fill in the details and click 'Plan My Trip' to get started!"
+#                     )
+#
+#             plan_button.click(
+#                 fn=self.plan_trip_callback,
+#                 inputs=[destination, travel_from, travel_to, experience, spend_level],
+#                 outputs=output
+#             )
+#
+#         return interface
+#
+#     def launch(self):
+#         """Launch the Gradio interface"""
+#         self.interface.launch(share=False, debug=True)

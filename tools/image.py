@@ -3,7 +3,7 @@ from io import BytesIO
 from PIL import Image
 from PIL.ImageFile import ImageFile
 
-from models.open_ai import PromptOpenAI
+from models.open_ai import OpenAIModel
 from tools import weather
 
 
@@ -58,7 +58,7 @@ class ImageGenerator:
             f"with iconic landmarks and natural seasonal colors."
         )
 
-        response = PromptOpenAI.get_openai_client().images.generate(
+        response = OpenAIModel.initialize_client().images.generate(
             model="dall-e-3",
             prompt=prompt,
             n=1,
