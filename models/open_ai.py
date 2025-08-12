@@ -7,7 +7,7 @@ from dotenv import load_dotenv
 from openai import OpenAI as OpenAIClient
 
 from tools import weather
-from types import Message
+from types.message import Message
 
 load_dotenv(override=True)
 

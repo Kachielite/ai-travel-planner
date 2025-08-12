@@ -3,7 +3,7 @@ import os
 from dotenv import load_dotenv
 from python_exchange_rates import AbstractExchangeRates
 
-from types import CurrencyConversion
+from types.currency import CurrencyConversion
 
 load_dotenv(override=True)
 
