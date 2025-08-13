@@ -13,41 +13,33 @@ class TravelPlanner:
 
     @staticmethod
     def get_system_prompt() -> str:
-        system_prompt: str = (
-            "You are a helpful travel planner. Your role is to assist users in planning their trips "
-            "by providing accurate, relevant, and easy-to-understand recommendations based on their trip details.\n\n"
-            "You have access to two tools:\n"
-            "1. **Weather Tool** – Retrieve accurate weather forecasts for the destination city and trip dates.\n"
-            "2. **Image Generation Tool** – Create a realistic image of the destination city on the specified trip dates, "
-            "reflecting the expected weather conditions.\n\n"
-            "When responding:\n"
-            "- Use the weather tool to get forecast details.\n"
-            "- Use the image tool to generate an image that visually represents the location and weather.\n"
-            "- Present your answer in **Markdown format**.\n"
-            "- Include the generated image in the response (Markdown syntax: `![alt text](image_url)`).\n"
-            "- If you do not know something, clearly say so rather than guessing.\n"
-            "- Ensure all advice is accurate, concise, and user-friendly."
+        return (
+            "You are a helpful travel planner. Provide accurate, concise, easy-to-understand recommendations.\n\n"
+            "TOOLS AVAILABLE:\n"
+            "1) Weather Tool – get forecast for the destination and trip dates.\n"
+            "RESPONSE RULES:\n"
+            "- Output in **Markdown** with clear headings, subheadings, bullets, and emojis where helpful.\n"
+            "- If unsure, say so."
         )
-        return system_prompt
 
     def create_user_prompt(self) -> str:
         return (
-            f"Create a detailed travel plan with the following requirements:\n\n"
-            f"- Destination: {self.trip_details.destination}\n"
-            f"- Travel dates: From {self.trip_details.travel_from} to {self.trip_details.travel_to}\n"
-            f"- Experience type: {self.trip_details.travel_experience}\n"
-            f"- Budget level: {self.trip_details.spend_level}\n\n"
-            "Please provide:\n"
-            "1. A day-by-day itinerary\n"
-            "2. Recommended accommodations based on budget\n"
-            "3. Must-see attractions and activities\n"
-            "4. Local cuisine recommendations\n"
-            "5. Transportation options\n"
-            "6. Budget breakdown\n"
-            "7. Packing suggestions\n"
-            "8. Important travel tips"
+            f"You are an expert AI travel planner. Create a visually rich **Markdown** travel plan for:\n\n"
+            f"- **Destination:** {self.trip_details.destination}\n"
+            f"- **Travel Dates:** {self.trip_details.travel_from} to {self.trip_details.travel_to}\n"
+            f"- **Experience Type:** {self.trip_details.travel_experience}\n"
+            f"- **Budget Level:** {self.trip_details.spend_level}\n\n"
+            "### What to include\n"
+            "1. **Trip Overview** (season & weather expectations from the provided forecast; do not include raw data URIs)\n"
+            "2. **Day-by-day itinerary** (morning/afternoon/evening)\n"
+            "3. **Accommodations** matched to budget\n"
+            "4. **Must-see attractions & activities** (short notes)\n"
+            "5. **Local cuisine** suggestions\n"
+            "6. **Transportation** within the city\n"
+            "7. **Budget breakdown** (approximate, local currency)\n"
+            "8. **Packing list** tailored to season/activities\n"
+            "9. **Important travel tips** (safety, etiquette, weather notes)\n\n"
         )
-
     def get_message(self):
         system_prompt = self.get_system_prompt()
         user_prompt = self.create_user_prompt()
@@ -60,7 +52,6 @@ class TravelPlanner:
     def get_tools(self):
         return [
             {"type": "function", "function": WeatherTool.get_tool_description()},
-            {"type": "function", "function": ImageGenerator.get_tool_description()}
         ]
 
     def handle_tool(self, message):
