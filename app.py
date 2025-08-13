@@ -20,9 +20,7 @@ class App:
 
             travel_planner = TravelPlanner(trip_details)
 
-            response = travel_planner.generate_travel_plan()
-
-            return response
+            return travel_planner.generate_travel_plan()
 
         except Exception as e:
             return self._format_error_message(str(e))

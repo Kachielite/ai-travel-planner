@@ -52,7 +52,7 @@ class ImageGenerator:
             )
 
         prompt = (
-            f"Generate a realistic image of {weather_data['city']} on {weather_data['trip_dates']} "
+            f"Generate a realistic image of {weather_data['city']} on {weather_data['travel_from']} "
             f"showing {weather_desc}. "
             f"Make sure the scenery reflects the weather and time of year, "
             f"with iconic landmarks and natural seasonal colors."
@@ -62,7 +62,7 @@ class ImageGenerator:
             model="dall-e-3",
             prompt=prompt,
             n=1,
-            size="1024x1024",
+            size="512x512",  # Reduced size for UI rendering and lower token usage
             response_format="b64_json",
         )
 

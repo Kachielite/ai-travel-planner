@@ -1,12 +1,12 @@
-from typing import Callable
+from typing import Callable, Generator
 import gradio as gr
 from datetime import datetime, date
 
 
 class UI:
-    prompt_function: Callable[[str, str, str, str, str], str]
+    prompt_function: Callable[[str, str, str, str, str], Generator[str, None, str]]
 
-    def __init__(self, prompt_function: Callable[[str, str, str, str, str], str]):
+    def __init__(self, prompt_function: Callable[[str, str, str, str, str], Generator[str, None, str]]):
         self.prompt_function = prompt_function
 
     def validate_and_process(self, destination, travel_from, travel_to, experience, spend_level):
@@ -52,86 +52,72 @@ class UI:
             error_message = "**Validation Errors:**\n" + "\n".join(f"- {error}" for error in errors)
             return error_message
 
-        # Call the original prompt function with validated inputs
+        # Call the prompt function and return the result directly (no streaming)
         return self.prompt_function(destination.strip(), travel_from.strip(), travel_to.strip(), experience, spend_level)
 
     def launch(self):
-        view = gr.Interface(
-            fn=self.validate_and_process,
-            inputs=[
-                gr.Textbox(label="Destination city", placeholder="e.g., Paris, Tokyo, New York"),
-                gr.Textbox(label="Travel from (YYYY-MM-DD)", placeholder="2024-12-25", info="Enter departure date"),
-                gr.Textbox(label="Travel to (YYYY-MM-DD)", placeholder="2024-12-30", info="Enter return date"),
-                gr.Dropdown(["adventurous", "relaxing", "cultural", "luxury"], label="Travel Experience"),
-                gr.Dropdown(["budget", "average", "luxury"], label="Spend Level"),
-            ],
-            outputs=[gr.Markdown(label="Trip Plan")],
-            flagging_mode="never",
-            title="AI Travel Planner",
-            description="Plan your perfect trip with AI assistance. Please fill in all fields to get started."
-        )
-        return view.launch()
+        with gr.Blocks(title="AI Travel Planner", css="""
+            #travel-output {
+                border-radius: 8px;
+                background: rgba(255,255,255,0.1);
+                color: white;
+                font-family: 'Segoe UI', sans-serif;
+                font-size: 1rem;
+                border: none;
+                padding: 1rem;
+                min-height: 435px;
+                box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+                resize: none;
+                overflow-y: auto;
+            }
+            #travel-output h1, #travel-output h2, #travel-output h3, #travel-output h4, #travel-output h5, #travel-output h6 {
+                color: #ffd700;
+            }
+        """) as interface:
+            gr.Markdown("# 🌍 AI Travel Planner")
+            gr.Markdown("Plan your perfect trip with AI assistance!")
 
+            with gr.Row():
+                with gr.Column(scale=1):
+                    destination = gr.Textbox(
+                        label="🏙️ Destination city",
+                        placeholder="e.g., Paris, Tokyo, New York"
+                    )
 
-# class TravelUI:
-#     def __init__(self, plan_trip_callback: Callable):
-#         self.plan_trip_callback = plan_trip_callback
-#         self.interface = self._create_interface()
-#
-#     def _create_interface(self):
-#         """Create the Gradio interface"""
-#         with gr.Blocks(title="AI Travel Planner", theme=gr.themes.Soft()) as interface:
-#             gr.Markdown("# 🌍 AI Travel Planner")
-#             gr.Markdown("Plan your perfect trip with AI assistance!")
-#
-#             with gr.Row():
-#                 with gr.Column():
-#                     destination = gr.Textbox(
-#                         label="Destination",
-#                         placeholder="e.g., Paris, France",
-#                         value=""
-#                     )
-#
-#                     with gr.Row():
-#                         travel_from = gr.Textbox(
-#                             label="Travel From (Date)",
-#                             placeholder="e.g., 2024-03-15",
-#                             value=""
-#                         )
-#                         travel_to = gr.Textbox(
-#                             label="Travel To (Date)",
-#                             placeholder="e.g., 2024-03-22",
-#                             value=""
-#                         )
-#
-#                     experience = gr.Dropdown(
-#                         choices=["Adventure", "Relaxation", "Cultural", "Business", "Family", "Romantic"],
-#                         label="Travel Experience",
-#                         value="Cultural"
-#                     )
-#
-#                     spend_level = gr.Dropdown(
-#                         choices=["Budget", "Mid-range", "Luxury"],
-#                         label="Spending Level",
-#                         value="Mid-range"
-#                     )
-#
-#                     plan_button = gr.Button("🗺️ Plan My Trip", variant="primary")
-#
-#                 with gr.Column():
-#                     output = gr.Markdown(
-#                         label="Your Travel Plan",
-#                         value="Fill in the details and click 'Plan My Trip' to get started!"
-#                     )
-#
-#             plan_button.click(
-#                 fn=self.plan_trip_callback,
-#                 inputs=[destination, travel_from, travel_to, experience, spend_level],
-#                 outputs=output
-#             )
-#
-#         return interface
-#
-#     def launch(self):
-#         """Launch the Gradio interface"""
-#         self.interface.launch(share=False, debug=True)
+                    with gr.Row():
+                        travel_from = gr.Textbox(
+                            label="📅 Travel from (YYYY-MM-DD)",
+                            placeholder="2024-12-25"
+                        )
+                        travel_to = gr.Textbox(
+                            label="📅 Travel to (YYYY-MM-DD)",
+                            placeholder="2024-12-30"
+                        )
+
+                    experience = gr.Dropdown(
+                        ["adventurous", "relaxing", "cultural", "luxury"],
+                        label="🎯 Travel Experience"
+                    )
+                    spend_level = gr.Dropdown(
+                        ["budget", "average", "luxury"],
+                        label="💰 Spend Level"
+                    )
+
+                    submit_btn = gr.Button("🚀 Plan My Trip", variant="primary", size="lg")
+
+                with gr.Column(scale=2):
+                    with gr.Group(elem_classes=["travel-output"]):
+                        output = gr.Markdown(
+                            value="👋 Welcome! Fill in your travel details and click 'Plan My Trip' to get started.",
+                            label="✈️ Your Travel Plan",
+                            elem_id = "travel-output"
+                        )
+
+            submit_btn.click(
+                fn=self.validate_and_process,
+                inputs=[destination, travel_from, travel_to, experience, spend_level],
+                outputs=[output],
+                show_progress=True  # show loading spinner during streaming
+            )
+
+        return interface.launch()

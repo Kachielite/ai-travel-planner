@@ -8,11 +8,11 @@ load_dotenv(override=True)
 
 class WeatherTool:
     destination_city: str
-    trip_dates: str  # format 'YYYY-MM-DD'
+    travel_from: str  # format 'YYYY-MM-DD'
 
-    def __init__(self, destination_city: str, trip_dates: str):
+    def __init__(self, destination_city: str, travel_from: str):
         self.destination_city = destination_city
-        self.trip_dates = trip_dates
+        self.travel_from = travel_from
 
     @staticmethod
     def get_tool_description() -> dict:
@@ -26,13 +26,13 @@ class WeatherTool:
                         "type": "string",
                         "description": "The city that the user wants to travel to",
                     },
-                    "trip_dates": {
+                    "travel_from": {
                         "type": "string",
-                        "description": "The date of the trip in 'YYYY-MM-DD' format",
+                        "description": "Departure date of the trip in 'YYYY-MM-DD' format",
                         "example": "2023-10-01"
                     }
                 },
-                "required": ["destination_city", "trip_dates"],
+                "required": ["destination_city", "travel_from"],
                 "additionalProperties": False
             }
         }
@@ -50,7 +50,7 @@ class WeatherTool:
         owm = OWM(api_key)
         mgr = owm.weather_manager()
 
-        trip_date = datetime.strptime(self.trip_dates, "%Y-%m-%d")
+        trip_date = datetime.strptime(self.travel_from, "%Y-%m-%d")
         forecast = mgr.forecast_at_place(self.destination_city, '3h')
         weather_on_trip = None
         for weather in forecast.forecast.weathers:
@@ -65,13 +65,13 @@ class WeatherTool:
                 "status": weather_on_trip.status,
                 "humidity": weather_on_trip.humidity,
                 "wind_speed": weather_on_trip.wind()['speed'],
-                "trip_dates": self.trip_dates
+                "travel_from": self.travel_from
             }
         else:
             return {
                 "city": self.destination_city,
                 "message": "No forecast available for the specified trip date.",
-                "trip_dates": self.trip_dates
+                "travel_from": self.travel_from
             }
 
 

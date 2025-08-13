@@ -2,6 +2,9 @@ from models.open_ai import OpenAIModel
 from schemas.trip_details import TripDetails
 from tools.image import ImageGenerator
 from tools.weather import WeatherTool
+import json
+import base64
+from io import BytesIO
 
 
 class TravelPlanner:
@@ -28,48 +31,113 @@ class TravelPlanner:
         return system_prompt
 
     def create_user_prompt(self) -> str:
-        return f"""
-        Create a detailed travel plan with the following requirements:
+        return (
+            f"Create a detailed travel plan with the following requirements:\n\n"
+            f"- Destination: {self.trip_details.destination}\n"
+            f"- Travel dates: From {self.trip_details.travel_from} to {self.trip_details.travel_to}\n"
+            f"- Experience type: {self.trip_details.travel_experience}\n"
+            f"- Budget level: {self.trip_details.spend_level}\n\n"
+            "Please provide:\n"
+            "1. A day-by-day itinerary\n"
+            "2. Recommended accommodations based on budget\n"
+            "3. Must-see attractions and activities\n"
+            "4. Local cuisine recommendations\n"
+            "5. Transportation options\n"
+            "6. Budget breakdown\n"
+            "7. Packing suggestions\n"
+            "8. Important travel tips"
+        )
 
-        - Destination: {self.trip_details.destination}
-        - Travel dates: From {self.trip_details.travel_from} to {self.trip_details.travel_to}
-        - Experience type: {self.trip_details.travel_experience}
-        - Budget level: {self.trip_details.spend_level}
+    def get_message(self):
+        system_prompt = self.get_system_prompt()
+        user_prompt = self.create_user_prompt()
 
-        Please provide:
-        1. A day-by-day itinerary
-        2. Recommended accommodations based on budget
-        3. Must-see attractions and activities
-        4. Local cuisine recommendations
-        5. Transportation options
-        6. Budget breakdown
-        7. Packing suggestions
-        8. Important travel tips
-        """
+        return [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
+        ]
 
-    def generate_travel_plan(self) -> str:
-        print("Generating travel plan...")
-        try:
-            user_prompt = self.create_user_prompt()
-            system_prompt = self.get_system_prompt()
-            tools = [{"type": "function", "function": WeatherTool.get_tool_description()},
-                     {"type": "function", "function": ImageGenerator.get_tool_description()}]
+    def get_tools(self):
+        return [
+            {"type": "function", "function": WeatherTool.get_tool_description()},
+            {"type": "function", "function": ImageGenerator.get_tool_description()}
+        ]
 
-            response = OpenAIModel.initialize_client().chat.completions.create(
-                model="gpt-3.5-turbo",
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt}
-                ],
-                max_tokens=2000,
-                temperature=0.7,
-                tools=tools,
-            )
+    def handle_tool(self, message):
+        response = []
+        tool_calls = message.tool_calls
 
-            if response.choices and len(response.choices) > 0:
-                return response.choices[0].message.content
+        if not tool_calls:
+            return None
+
+        for tool_call in tool_calls:
+            tool_name = tool_call.function.name
+            tool_args = json.loads(tool_call.function.arguments)
+
+            if tool_name == "get_weather":
+                weather_tool = WeatherTool(
+                    destination_city=tool_args["destination_city"],
+                    travel_from=tool_args["travel_from"]
+                )
+                weather = weather_tool.get_weather()
+                response.append({
+                    "role": "tool",
+                    "content": json.dumps(weather),
+                    "tool_call_id": tool_call.id,
+                })
+            elif tool_name == "generate_image":
+                image_tool = ImageGenerator(
+                    destination_city=tool_args["destination_city"],
+                    trip_dates=tool_args["trip_dates"]
+                )
+                image = image_tool.generate_image()
+                # Convert PIL image to base64 string
+                buffered = BytesIO()
+                image.save(buffered, format="PNG")
+                img_str = base64.b64encode(buffered.getvalue()).decode()
+                markdown_img = f"![{tool_args['destination_city']}]('data:image/png;base64,{img_str}')"
+                response.append({
+                    "role": "tool",
+                    "content": markdown_img,
+                    "tool_call_id": tool_call.id,
+                })
             else:
-                raise Exception("No response received from OpenAI API")
+                print(f"Unknown tool call: {tool_name}")
 
-        except Exception as e:
-            raise Exception(f"OpenAI API error: {str(e)}")
+        return response
+
+    def generate_travel_plan(self):
+        get_messages = self.get_message()
+        get_tools = self.get_tools()
+
+        response = OpenAIModel.initialize_client().chat.completions.create(
+            model="gpt-4o-mini",
+            messages=get_messages,
+            tools=get_tools,
+            max_tokens=2000,
+            temperature=0.7
+        )
+
+        if not response.choices:
+            return "No response from the model. Please check the model configuration and try again."
+
+        message = response.choices[0].message
+        updated_response = self.handle_tool(message)
+
+        if not updated_response:
+            return "No tools were called in the response. Please check the model's output."
+
+        get_messages.append({"role": "assistant", "content": message.content, "tool_calls": message.tool_calls})
+        get_messages.extend(updated_response)
+
+        travel_plan = OpenAIModel.initialize_client().chat.completions.create(
+            model="gpt-4o-mini",
+            messages=get_messages,
+            max_tokens=2000,
+            temperature=0.7,
+            stream=False
+        )
+
+        if travel_plan.choices and travel_plan.choices[0].message:
+            return travel_plan.choices[0].message.content
+        return "No travel plan generated."
