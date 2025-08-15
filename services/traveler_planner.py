@@ -5,7 +5,8 @@ from tools.image import ImageGenerator
 from tools.weather import WeatherTool
 import base64
 from io import BytesIO
-import re, json
+import json
+from typing import cast
 
 
 class TravelPlanner:
@@ -97,98 +98,46 @@ class TravelPlanner:
 
         return response
 
-
-    def parse_ollama_tool_call(self, response):
-        weather = None
-        image = None
-        match = re.search(r'\{\s*"tool_call".*?\}', str(response), re.DOTALL)
-        if match:
-            try:
-                tool_call_json = json.loads(match.group(0))
-                tool_call = tool_call_json.get("tool_call")
-
-                tool_name = tool_call.get('name')
-                tool_args = tool_call.get('arguments', {})
-
-                if tool_name == "get_weather":
-                    weather_tool = WeatherTool(
-                        destination_city=tool_args.get("destination_city"),
-                        travel_from=tool_args.get("travel_from")
-                    )
-                    weather = weather_tool.get_weather()
-                elif tool_name == "generate_image":
-                    image_tool = ImageGenerator(
-                        destination_city=tool_args.get("destination_city"),
-                        trip_dates=tool_args.get("trip_dates")
-                    )
-                    image = image_tool.generate_image()
-                    # Convert PIL image to base64 string
-                    buffered = BytesIO()
-                    image.save(buffered, format="PNG")
-                    img_str = base64.b64encode(buffered.getvalue()).decode()
-                    weather = f"![{tool_args['destination_city']}]('data:image/png;base64,{img_str}')"
-            except Exception:
-                return None
-        return weather, image
-
     def extract_content(self, resp):
         if not resp:
             return None
         if isinstance(resp, dict):
-            # Ollama OpenAI-compatible /chat endpoint often returns {'message': {'role': 'assistant', 'content': '...'}, ...}
             if 'message' in resp and isinstance(resp['message'], dict):
                 return resp['message'].get('content')
-            # Fallback: some wrappers may put content at top-level
             if 'content' in resp:
                 return resp.get('content')
         return None
 
+    @staticmethod
+    def _ensure_text(value):
+        if value is None:
+            return ""
+        if isinstance(value, str):
+            return value
+        try:
+            return json.dumps(value, ensure_ascii=False, indent=2)
+        except Exception:
+            return str(value)
+
     def generate_travel_plan(self):
-        get_messages = self.get_message()
+        get_messages = cast(list, self.get_message())
         get_tools = self.get_tools()
         model_choice = getattr(self.trip_details, 'model', 'openai').lower()
 
+        # Step 1: Prepare tool-aware prompt
+        if model_choice == 'llama2':
+            tools_text = "\n\nTOOLS AVAILABLE:\n" + json.dumps(get_tools, indent=2)
+            get_messages[0]["content"] += tools_text
+            get_messages[0]["content"] += (
+                "\n\nIf you need to use a tool, respond ONLY with JSON in the format:\n"
+                '{"tool": "<tool_name>", "arguments": { ... }}\n'
+                "Otherwise, respond with your final travel plan in Markdown."
+            )
 
-        if model_choice == 'ollama':
-            # First call to Ollama with initial user + system prompt
-            ollama_instance = Ollama(get_messages)
-            response = ollama_instance.initialize_client()
+        updated_response = None  # This will hold tool execution results
 
-            assistant_content = self.extract_content(response)
-            if assistant_content:
-                get_messages.append({"role": "assistant", "content": assistant_content})
-
-            # Try to detect tool call instructions embedded in response
-            weather_result, image_result = self.parse_ollama_tool_call(response)
-
-            tool_messages_added = False
-            if weather_result:
-                # Append weather tool output
-                get_messages.append({
-                    "role": "tool",
-                    "content": json.dumps(weather_result),
-                    "tool_call_id": "ollama-weather-1"
-                })
-                tool_messages_added = True
-            if image_result:
-                # image_result already markdown
-                get_messages.append({
-                    "role": "tool",
-                    "content": image_result,
-                    "tool_call_id": "ollama-image-1"
-                })
-                tool_messages_added = True
-
-            if tool_messages_added:
-                # Second call so model can incorporate tool outputs into final plan
-                ollama_instance = Ollama(get_messages)
-                final_response = ollama_instance.initialize_client()
-                final_content = self.extract_content(final_response)
-                return final_content or final_response
-            else:
-                return assistant_content or response
-        else:
-            # Default to OpenAI
+        # Step 2: First model call
+        if model_choice == 'gpt-4o-mini':
             response = OpenAIModel.initialize_client().chat.completions.create(
                 model="gpt-4o-mini",
                 messages=get_messages,
@@ -196,27 +145,84 @@ class TravelPlanner:
                 max_tokens=2000,
                 temperature=0.7
             )
-
             if not response.choices:
-                return "No response from the model. Please check the model configuration and try again."\
+                return "No response from the model. Please check the configuration."
 
             message = response.choices[0].message
+
+            tool_calls_payload = None
+            if getattr(message, "tool_calls", None):
+                tool_calls_payload = []
+                for tc in message.tool_calls:
+                    tool_calls_payload.append({
+                        "id": tc.id,
+                        "type": "function",
+                        "function": {
+                            "name": tc.function.name,
+                            "arguments": tc.function.arguments,
+                        }
+                    })
+
+            get_messages.append({
+                "role": "assistant",
+                "content": message.content or "",
+                **({"tool_calls": tool_calls_payload} if tool_calls_payload else {})
+            })
+
             updated_response = self.handle_tool(message)
 
-            if not updated_response:
-                return "No tools were called in the response. Please check the model's output."\
+        else:  # llama2
+            ollama_instance = Ollama(get_messages)
+            response = ollama_instance.initialize_client()
 
-            get_messages.append({"role": "assistant", "content": message.content, "tool_calls": message.tool_calls})
+            first_reply = None
+            if isinstance(response, dict):
+                # Ollama chat mode
+                if "message" in response and isinstance(response["message"], dict):
+                    first_reply = response["message"].get("content", "")
+                # Ollama generate mode (usually returns "response")
+                elif "response" in response:
+                    first_reply = response["response"]
+
+            first_reply = first_reply or ""
+
+            get_messages.append({"role": "assistant", "content": first_reply})
+
+            try:
+                tool_call = json.loads(first_reply)
+                if isinstance(tool_call, dict) and "tool" in tool_call:
+                    message = type("ToolMessage", (), {
+                        "tool_calls": [
+                            type("ToolCall", (), {
+                                "function": type("Function", (), {
+                                    "name": tool_call["tool"],
+                                    "arguments": json.dumps(tool_call["arguments"])
+                                }),
+                                "id": "ollama-tool-1"
+                            })
+                        ]
+                    })
+                    updated_response = self.handle_tool(message)
+                else:
+                    return self._ensure_text(first_reply)
+            except json.JSONDecodeError:
+                return self._ensure_text(first_reply)
+
+        # Step 3: If tool was called, run second round
+        if updated_response:
             get_messages.extend(updated_response)
+            if model_choice == 'gpt-4o-mini':
+                travel_plan = OpenAIModel.initialize_client().chat.completions.create(
+                    model="gpt-4o-mini",
+                    messages=get_messages,
+                    max_tokens=2000,
+                    temperature=0.7
+                )
+                if travel_plan.choices and travel_plan.choices[0].message:
+                    return self._ensure_text(travel_plan.choices[0].message.content)
+            else:
+                ollama_instance = Ollama(get_messages)
+                final_response = ollama_instance.initialize_client()
+                return self._ensure_text(final_response.get("choices", [{}])[0].get("message", {}).get("content", ""))
 
-            travel_plan = OpenAIModel.initialize_client().chat.completions.create(
-                model="gpt-4o-mini",
-                messages=get_messages,
-                max_tokens=2000,
-                temperature=0.7,
-                stream=False
-            )
-
-            if travel_plan.choices and travel_plan.choices[0].message:
-                return travel_plan.choices[0].message.content
-            return "No travel plan generated."
+        return "No travel plan generated."

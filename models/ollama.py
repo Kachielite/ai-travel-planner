@@ -1,13 +1,15 @@
 import requests
-from schemas.message import Messages
-
+import json
 
 class Ollama:
-    OLLAMA_API: str = "http://localhost:11434/v1/chat"
-    HEADERS: dict = {"Content-Type": "application/json"}
-    MODEL_NAME: str = "llama2"
+    CHAT_API = "http://localhost:11434/api/chat"
+    HEADERS = {"Content-Type": "application/json"}
+    MODEL_NAME = "llama2"
 
-    def __init__(self, messages: Messages):
+    def __init__(self, messages: list):
+        for m in messages:
+            if m.get("content") is None:
+                m["content"] = ""
         self.messages = messages
 
     def get_payload(self):
@@ -18,14 +20,19 @@ class Ollama:
         }
 
     def initialize_client(self):
-        print('Calling to Ollama API...')
+        print(f"Calling Ollama API in CHAT mode with {len(self.messages)} messages...")
+        payload = self.get_payload()
+
         try:
             response = requests.post(
-                self.OLLAMA_API,
-                json=self.get_payload(),
+                self.CHAT_API,
+                json=payload,
                 headers=self.HEADERS
             )
+
             response.raise_for_status()
-            return response.json()
+            data = response.json()
+            return data
         except requests.RequestException as e:
             raise RuntimeError(f"Failed to connect to Ollama API: {e}")
+
