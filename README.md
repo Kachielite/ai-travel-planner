@@ -9,6 +9,7 @@ The AI Travel Planner is designed as a learning project to demonstrate how to im
 ### Key Features
 
 - 🤖 **AI-Powered Planning**: Uses GPT-4o-mini with function calling for intelligent travel recommendations
+- 🔀 **Multi-Model Support**: Switch between OpenAI (gpt-4o-mini) and a local Ollama model (llama2) via a dropdown
 - 🌤️ **Real-Time Weather Integration**: Fetches live weather data using OpenWeatherMap API
 - 🎨 **AI Image Generation**: Creates destination images using DALL-E 3
 - 🖥️ **Modern Web Interface**: Built with Gradio for an intuitive user experience
@@ -24,19 +25,20 @@ AITravelPlanner/
 ├── app.py                 # Main application entry point
 ├── requirements.txt       # Python dependencies
 ├── models/
-│   └── open_ai.py        # OpenAI client configuration
+│   ├── open_ai.py         # OpenAI client configuration
+│   └── ollama.py          # Ollama local model client wrapper
 ├── presentation/
-│   └── ui.py             # Gradio web interface
+│   └── ui.py              # Gradio web interface (now with model selection)
 ├── schemas/
-│   ├── trip_details.py   # Pydantic data models
-│   ├── currency.py       # Currency-related schemas
-│   └── message.py        # Message schemas
+│   ├── trip_details.py    # Pydantic data models
+│   ├── currency.py        # Currency-related schemas
+│   └── message.py         # Message schemas
 ├── services/
-│   └── traveler_planner.py # Core travel planning logic
+│   └── traveler_planner.py # Core travel planning logic (multi-model orchestration)
 └── tools/
-    ├── weather.py        # Weather API integration
-    ├── image.py          # Image generation tool
-    └── currency.py       # Currency conversion tool
+    ├── weather.py         # Weather API integration
+    ├── image.py           # Image generation tool
+    └── currency.py        # Currency conversion tool
 ```
 
 ### Key Components
@@ -45,6 +47,7 @@ AITravelPlanner/
 - Demonstrates proper OpenAI function calling setup
 - Tool registration and execution handling
 - Multi-turn conversation management with tool responses
+- Chooses execution path depending on selected model (OpenAI vs. Ollama)
 
 #### 2. **Weather Tool** (`tools/weather.py`)
 - OpenWeatherMap API integration
@@ -61,14 +64,35 @@ AITravelPlanner/
 - Gradio-based responsive UI
 - Form validation and error handling
 - Real-time travel plan generation
+- Model selection dropdown (OpenAI gpt-4o-mini or local llama2)
+
+#### 5. **Local Model Support** (`models/ollama.py`)
+- Lightweight wrapper around the Ollama Chat API
+- Normalizes message format (ensures empty strings for null content)
+- Provides a drop-in alternative path when user selects a local model
+
+## 🧠 Multi-Model Support (OpenAI + Ollama)
+
+You can now run the planner with either:
+
+1. OpenAI gpt-4o-mini (cloud – function calling with native tool invocation)
+2. A local Ollama-hosted model like llama2 (JSON-based pseudo tool calling)
+
+When using Ollama:
+- Tools are exposed to the model inside the system prompt as JSON schema.
+- The model is instructed to reply with a JSON object `{ "tool": "<name>", "arguments": { ... } }` when it wants a tool.
+- The app parses that JSON, executes the tool(s), appends results, and then asks the model for a final Markdown plan.
+
+This pattern demonstrates how to simulate function calling for models that do not natively support the OpenAI tools API.
 
 ## 🚀 Getting Started
 
 ### Prerequisites
 
 - Python 3.8+
-- OpenAI API key
+- OpenAI API key (for gpt-4o-mini usage)
 - OpenWeatherMap API key
+- (Optional) **Ollama** installed locally if you want to use a local model (e.g., llama2)
 
 ### Installation
 
@@ -91,12 +115,15 @@ AITravelPlanner/
    OPEN_WEATHER_API_KEY=your_openweather_api_key_here
    ```
 
-4. **Run the application**
+4. **(Optional) Install Ollama for Local Models**
+   See detailed instructions below in the Ollama Setup section.
+
+5. **Run the application**
    ```bash
    python app.py
    ```
 
-5. **Access the web interface**
+6. **Access the web interface**
    
    Open your browser and navigate to the URL shown in the terminal (typically `http://localhost:7860`)
 
@@ -114,6 +141,62 @@ AITravelPlanner/
 2. Sign up for a free account
 3. Generate an API key
 4. Add it to your `.env` file
+
+## 🐙 Ollama (Local Model) Setup
+
+Ollama lets you run large language models locally with a single command.
+
+### 1. Install Ollama
+
+- macOS (Homebrew):
+  ```bash
+  brew install ollama
+  ```
+- macOS (direct): Download from https://ollama.com and install the app.
+- Linux:
+  ```bash
+  curl -fsSL https://ollama.com/install.sh | sh
+  ```
+- Windows: Download installer from https://ollama.com (requires Windows 11 + WSL2 in some cases; follow official docs).
+
+Start the Ollama service (it usually starts automatically). If needed:
+```bash
+ollama serve
+```
+
+### 2. Pull a Model
+
+The app expects `llama2` by default (see `models/ollama.py`). Pull it first:
+```bash
+ollama pull llama2
+```
+(You can substitute another model, e.g., `mistral`, `llama3`, `qwen`.)
+
+### 3. Run / Test the Model Manually (Optional)
+```bash
+ollama run llama2
+```
+Type a prompt to ensure it responds, then exit (Ctrl+C).
+
+### 4. Adjusting the Model Name
+
+Change the constant in `models/ollama.py` if you want a different model:
+```python
+MODEL_NAME = "mistral"
+```
+
+### 5. Using the Model in the UI
+
+Launch the app, then select "llama2" (or your chosen model name) from the "🤖 AI Model" dropdown before clicking "Plan My Trip".
+
+### 6. How Tool Simulation Works for Ollama
+
+Because Ollama models do not have native tool calling yet:
+- The system prompt embeds the tool schema
+- The model is instructed to output a JSON object specifying the tool and arguments
+- The application executes the tool, appends its result, and requests a final travel plan
+
+If the model does not request a tool (gives a direct plan), the app returns that plan as-is.
 
 ## 💡 How It Works: Function Calling Implementation
 
@@ -325,6 +408,7 @@ This project demonstrates:
 5. **Data Validation**: Using Pydantic for type safety and validation
 6. **API Integration**: Working with multiple external services
 7. **Conversation Management**: Handling multi-turn AI conversations with tools
+8. **Local Model Orchestration**: Simulating tool calling for non-native providers (Ollama)
 
 ## 🔧 Dependencies
 
@@ -335,6 +419,7 @@ This project demonstrates:
 - **requests>=2.31.0**: HTTP requests for API calls
 - **pillow~=11.3.0**: Image processing for DALL-E integration
 - **pyowm~=3.3.0**: OpenWeatherMap API client
+- *(Optional)* **Ollama**: Local LLM runtime (installed separately, not via pip)
 
 ## 🤝 Contributing
 
@@ -345,6 +430,15 @@ This project is designed for learning purposes. Feel free to:
 - Add more sophisticated error handling
 - Implement streaming responses
 - Add unit tests
+- Extend local model logic (support multiple alternates, auto tool retries)
+
+## 🗺️ Roadmap Ideas
+
+- Multi-tool chaining with reasoning steps
+- Caching weather responses
+- Streaming token output
+- Additional local model adapters (LM Studio, text-generation-webui)
+- Evaluation scripts comparing OpenAI vs. local responses
 
 ## 📄 License
 
@@ -352,11 +446,12 @@ This project is open source and available under the [MIT License](LICENSE).
 
 ## 📞 Support
 
-If you encounter any issues or have questions about implementing function calling with OpenAI:
+If you encounter any issues or have questions about implementing function calling with OpenAI or simulating it with local models:
 
 1. Check the [OpenAI Function Calling Documentation](https://platform.openai.com/docs/guides/function-calling)
 2. Review the code comments and implementation examples
-3. Open an issue in this repository
+3. Consult [Ollama Documentation](https://github.com/ollama/ollama)
+4. Open an issue in this repository
 
 ---
 
