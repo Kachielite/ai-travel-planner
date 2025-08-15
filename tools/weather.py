@@ -38,6 +38,7 @@ class WeatherTool:
         }
 
     def get_weather(self) -> dict:
+        print("Fetching weather information...")
         api_key = os.getenv("OPEN_WEATHER_API_KEY")
 
         if not api_key:
@@ -59,6 +60,9 @@ class WeatherTool:
                 break
 
         if weather_on_trip:
+            print(f"Weather on {self.travel_from} in {self.destination_city}: {weather_on_trip.status}, "
+                  f"Temperature: {weather_on_trip.temperature('celsius')['temp']}°C, "
+                  f"Humidity: {weather_on_trip.humidity}%, Wind Speed: {weather_on_trip.wind()['speed']} m/s")
             return {
                 "city": self.destination_city,
                 "temperature": weather_on_trip.temperature('celsius')['temp'],
@@ -68,6 +72,7 @@ class WeatherTool:
                 "travel_from": self.travel_from
             }
         else:
+            print(f"No weather forecast available for {self.destination_city} on {self.travel_from}.")
             return {
                 "city": self.destination_city,
                 "message": "No forecast available for the specified trip date.",
