@@ -3,7 +3,7 @@ import os
 from dotenv import load_dotenv
 from python_exchange_rates import AbstractExchangeRates
 
-from types.currency import CurrencyConversion
+from schemas.currency import CurrencyConversion
 
 load_dotenv(override=True)
 
@@ -47,6 +47,8 @@ class CurrencyConverterTool:
         }
 
     def convert_currency(self) -> dict:
+        print("Calling convert_currency tool...")
+        print("Fetching currency conversion information...")
         api_key = os.getenv("ABSTRACT_API_KEY")
 
         if not api_key:
@@ -65,6 +67,7 @@ class CurrencyConverterTool:
 
         if conversion_result is None:
             raise ValueError(f"Conversion from {base} to {target} failed. Please check the currency codes and try again.")
+        print(f"Converted {amount} {base} to {conversion_result['result']} {target} on {date}.")
         return {
             "from_currency": base,
             "to_currency": target,
