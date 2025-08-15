@@ -38,6 +38,7 @@ class WeatherTool:
         }
 
     def get_weather(self) -> dict:
+        print("Calling get_weather tool...")
         print("Fetching weather information...")
         api_key = os.getenv("OPEN_WEATHER_API_KEY")
 
