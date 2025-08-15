@@ -12,6 +12,7 @@ class OpenAIModel:
 
     @staticmethod
     def initialize_client():
+        print("Calling OpenAI API...")
         api_key = os.getenv('OPENAI_API_KEY')
         if not api_key:
             raise ValueError("OPENAI_API_KEY environment variable is not set")

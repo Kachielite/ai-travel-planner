@@ -18,6 +18,7 @@ class Ollama:
         }
 
     def initialize_client(self):
+        print('Calling to Ollama API...')
         try:
             response = requests.post(
                 self.OLLAMA_API,

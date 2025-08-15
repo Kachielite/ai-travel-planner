@@ -47,7 +47,7 @@ class WeatherTool:
         elif api_key.strip() != api_key:
             raise ValueError("OPEN_WEATHER_API_KEY must not contain leading or trailing whitespace. Please check your API key.")
         else:
-            print("OpenWeather API key is valid and loaded successfully.")
+            print("API key is valid, proceeding with weather fetch...")
 
         owm = OWM(api_key)
         mgr = owm.weather_manager()
