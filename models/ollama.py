@@ -1,5 +1,5 @@
 import requests
-import json
+
 
 class Ollama:
     CHAT_API = "http://localhost:11434/api/chat"
