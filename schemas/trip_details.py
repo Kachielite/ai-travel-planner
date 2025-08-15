@@ -7,8 +7,7 @@ class TripDetails(BaseModel):
     travel_to: str
     travel_experience: str
     spend_level: str
-    budget_currency: str
-    model: list[str] = ["gpt-4o-mini", "llama2"]
+    model: str
 
     class Config:
         arbitrary_types_allowed = True

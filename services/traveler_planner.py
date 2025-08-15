@@ -1,10 +1,11 @@
 from models.open_ai import OpenAIModel
+from models.ollama import Ollama
 from schemas.trip_details import TripDetails
 from tools.image import ImageGenerator
 from tools.weather import WeatherTool
-import json
 import base64
 from io import BytesIO
+import re, json
 
 
 class TravelPlanner:
@@ -17,7 +18,6 @@ class TravelPlanner:
             "You are a helpful travel planner. Provide accurate, concise, easy-to-understand recommendations.\n\n"
             "TOOLS AVAILABLE:\n"
             "1) Weather Tool – get forecast for the destination and trip dates.\n"
-            "RESPONSE RULES:\n"
             "- Output in **Markdown** with clear headings, subheadings, bullets, and emojis where helpful.\n"
             "- If unsure, say so."
         )
@@ -36,7 +36,7 @@ class TravelPlanner:
             "4. **Must-see attractions & activities** (short notes)\n"
             "5. **Local cuisine** suggestions\n"
             "6. **Transportation** within the city\n"
-            "7. **Budget breakdown** (approximate, local currency)\n"
+            "7. **Budget breakdown** (approximate, in US dollars)\n"
             "8. **Packing list** tailored to season/activities\n"
             "9. **Important travel tips** (safety, etiquette, weather notes)\n\n"
         )
@@ -97,38 +97,79 @@ class TravelPlanner:
 
         return response
 
+    def parse_ollama_tool_call(self, response):
+        match = re.search(r'\{\s*"tool_call".*?\}', str(response), re.DOTALL)
+        if match:
+            try:
+                tool_call_json = json.loads(match.group(0))
+                return tool_call_json.get("tool_call")
+            except Exception:
+                return None
+        return None
+
     def generate_travel_plan(self):
         get_messages = self.get_message()
         get_tools = self.get_tools()
 
-        response = OpenAIModel.initialize_client().chat.completions.create(
-            model="gpt-4o-mini",
-            messages=get_messages,
-            tools=get_tools,
-            max_tokens=2000,
-            temperature=0.7
-        )
+        # Select model based on user input
+        model_choice = getattr(self.trip_details, 'model', 'openai').lower()
+        if model_choice == 'ollama':
+            # Use Ollama
+            ollama_instance = Ollama(get_messages)
+            response = ollama_instance.initialize_client()
+            # Try to parse for tool call
+            tool_call = self.parse_ollama_tool_call(response)
+            if tool_call:
+                tool_name = tool_call.get('name')
+                tool_args = tool_call.get('arguments', {})
+                # Call the tool if supported
+                if tool_name == "get_weather":
+                    weather_tool = WeatherTool(
+                        destination_city=tool_args.get("destination_city"),
+                        travel_from=tool_args.get("travel_from")
+                    )
+                    weather = weather_tool.get_weather()
+                    # Optionally, send tool result back to Ollama for a final answer
+                    get_messages.append({
+                        "role": "tool",
+                        "content": json.dumps(weather),
+                        "tool_call_id": tool_call.get('id', 'ollama-tool')
+                    })
+                    ollama_instance = Ollama(get_messages)
+                    final_response = ollama_instance.initialize_client()
+                    return final_response
+                # Add more tool handling as needed
+            return response
+        else:
+            # Default to OpenAI
+            response = OpenAIModel.initialize_client().chat.completions.create(
+                model="gpt-4o-mini",
+                messages=get_messages,
+                tools=get_tools,
+                max_tokens=2000,
+                temperature=0.7
+            )
 
-        if not response.choices:
-            return "No response from the model. Please check the model configuration and try again."
+            if not response.choices:
+                return "No response from the model. Please check the model configuration and try again."
 
-        message = response.choices[0].message
-        updated_response = self.handle_tool(message)
+            message = response.choices[0].message
+            updated_response = self.handle_tool(message)
 
-        if not updated_response:
-            return "No tools were called in the response. Please check the model's output."
+            if not updated_response:
+                return "No tools were called in the response. Please check the model's output."
 
-        get_messages.append({"role": "assistant", "content": message.content, "tool_calls": message.tool_calls})
-        get_messages.extend(updated_response)
+            get_messages.append({"role": "assistant", "content": message.content, "tool_calls": message.tool_calls})
+            get_messages.extend(updated_response)
 
-        travel_plan = OpenAIModel.initialize_client().chat.completions.create(
-            model="gpt-4o-mini",
-            messages=get_messages,
-            max_tokens=2000,
-            temperature=0.7,
-            stream=False
-        )
+            travel_plan = OpenAIModel.initialize_client().chat.completions.create(
+                model="gpt-4o-mini",
+                messages=get_messages,
+                max_tokens=2000,
+                temperature=0.7,
+                stream=False
+            )
 
-        if travel_plan.choices and travel_plan.choices[0].message:
-            return travel_plan.choices[0].message.content
-        return "No travel plan generated."
+            if travel_plan.choices and travel_plan.choices[0].message:
+                return travel_plan.choices[0].message.content
+            return "No travel plan generated."

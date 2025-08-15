@@ -8,14 +8,15 @@ class App:
         self.ui = UI(self.plan_trip)
 
     def plan_trip(self, destination: str, travel_from: str, travel_to: str,
-                experience: str, spend_level: str) -> str:
+                experience: str, spend_level: str, model: str = "gpt-4o-mini") -> str:
         try:
             trip_details = TripDetails(
                 destination=destination,
                 travel_from=travel_from,
                 travel_to=travel_to,
                 travel_experience=experience,
-                spend_level=spend_level
+                spend_level=spend_level,
+                model=model
             )
 
             travel_planner = TravelPlanner(trip_details)

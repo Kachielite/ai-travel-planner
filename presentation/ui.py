@@ -1,15 +1,15 @@
-from typing import Callable, Generator
+from typing import Callable
 import gradio as gr
 from datetime import datetime, date
 
 
 class UI:
-    prompt_function: Callable[[str, str, str, str, str], Generator[str, None, str]]
+    prompt_function: Callable[[str, str, str, str, str, str], str]
 
-    def __init__(self, prompt_function: Callable[[str, str, str, str, str], Generator[str, None, str]]):
+    def __init__(self, prompt_function: Callable[[str, str, str, str, str, str], str]):
         self.prompt_function = prompt_function
 
-    def validate_and_process(self, destination, travel_from, travel_to, experience, spend_level):
+    def validate_and_process(self, destination, travel_from, travel_to, experience, spend_level, model="gpt-4o-mini") -> str:
         """Validate inputs before calling the main prompt function"""
         errors = []
 
@@ -53,9 +53,9 @@ class UI:
             return error_message
 
         # Call the prompt function and return the result directly (no streaming)
-        return self.prompt_function(destination.strip(), travel_from.strip(), travel_to.strip(), experience, spend_level)
+        return self.prompt_function(destination.strip(), travel_from.strip(), travel_to.strip(), experience, spend_level, model)
 
-    def launch(self):
+    def launch(self, share=False):
         with gr.Blocks(title="AI Travel Planner", css="""
             #travel-output {
                 border-radius: 8px;
@@ -103,6 +103,13 @@ class UI:
                         label="💰 Spend Level"
                     )
 
+                    with gr.Row():
+                        model = gr.Dropdown(
+                            ["gpt-4o-mini", "llama2"],
+                            label="🤖 AI Model",
+                            value="gpt-4o-mini"
+                        )
+
                     submit_btn = gr.Button("🚀 Plan My Trip", variant="primary", size="lg")
 
                 with gr.Column(scale=2):
@@ -115,9 +122,9 @@ class UI:
 
             submit_btn.click(
                 fn=self.validate_and_process,
-                inputs=[destination, travel_from, travel_to, experience, spend_level],
+                inputs=[destination, travel_from, travel_to, experience, spend_level, model],
                 outputs=[output],
-                show_progress=True  # show loading spinner during streaming
+                show_progress="full"  # show loading spinner during processing
             )
 
-        return interface.launch()
+        return interface.launch(share=share)
